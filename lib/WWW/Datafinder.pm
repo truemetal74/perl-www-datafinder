@@ -236,7 +236,9 @@ sub _transaction {
 
     my $csv = Text::CSV_XS->new;
     my $df  = WWW::Datafinder->new( {
-          api_key   => '456' # place real API key here
+          api_key    => '456', # place real API key here
+          cache_dir  => '/var/tmp/datafinder',
+          cache_time => 3600 * 24 * 14
     }) or die 'Cannot create Datafinder object';
 
     # process a CSV file with 6 columns:
@@ -277,6 +279,10 @@ Creates a new object, acceptable parameters are:
 =item C<api_key> - (required) the key to be used for read operations
 
 =item C<retries> - how many times retry the request upon error (e.g. timeout). Default is 5.
+
+=item C<cache_time> - for how long the cached result is valid(in seconds). 0 (default) turns caching off.
+
+=item C<cache_dir> - directory where cache files are stored, default is /var/tmp/datafinder-cache
 
 =back
 
