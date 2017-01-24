@@ -15,7 +15,7 @@ my $obj = new_ok( $class => [{
    }]);
 
 # attributes
-foreach my $attr (qw(api_key retries)) {
+foreach my $attr (qw(api_key cache_time cache_dir retries)) {
     has_attribute_ok( $class, $attr, $attr . ' attribute' );
 }
 

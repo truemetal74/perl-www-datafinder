@@ -10,11 +10,11 @@ WWW::Datafinder - Perl API for Datafinder L<< http://datafinder.com >> API for m
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 use Carp qw(cluck);
 use Data::Dumper;
