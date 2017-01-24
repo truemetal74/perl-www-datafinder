@@ -24,12 +24,24 @@ use URI;
 use Scalar::Util qw(blessed reftype);
 use Readonly;
 use Exporter 'import';
+use File::Path qw(make_path);
+use File::Spec::Functions qw(catfile);
+use Digest::MD5 qw(md5 md5_hex);
+use Storable qw(nstore retrieve dclone);
 
 use Mouse;
 
-#** @attr public api_key $api_key API access key
+#** @attr public String $api_key API access key
 #*
 has api_key => ( isa => 'Str', is => 'rw', required => 1 );
+
+#** @attr public Int $cache_time How long locally cached results are valid
+#*
+has cache_time => ( isa => 'Int', is => 'rw', default => 0 );
+
+#** @attr public Int $cache_dir Whether to store locally cached results
+#*
+has cache_dir => ( isa => 'Str', is => 'rw', default => '/var/tmp/datafinder-cache' );
 
 #** @attr public Int $retries How many times retry upon timeout
 #*
@@ -116,7 +128,19 @@ sub _process_response {
     }
 
     $self->error_message(q{});
+    if (reftype($parsed_content) eq 'HASH' && $parsed_content->{datafinder}) {
+        return $parsed_content->{datafinder};
+    }
     return $parsed_content;
+}
+
+sub _cache_file_name {
+    my ( $self, $query_params, $data ) = @_;
+    
+    my $fname = catfile($self->cache_dir,,
+                        md5_hex(Dumper($query_params).Dumper($data)));
+    $fname .= '.stor';
+    return $fname;
 }
 
 sub _transaction {
@@ -128,15 +152,78 @@ sub _transaction {
     my $headers = { 'Content-Type' => 'application/json' };
     my $response;
     #    print "JSON data ".encode_json($data);
+
+    my $f = $self->_cache_file_name($query_params, $data);
+    if ($self->cache_time && -s $f) {
+        # there is a cache file!
+        my $t = (stat($f))[9];
+        if ($t + $self->cache_time > time()) {
+            # recent enough
+            my $data = eval { retrieve($f); };
+            if (!$@ && $data) {
+                if ($data->{errors} || $data->{datafinder}->{errors}) {
+                    print "Cached object contains error response - removing\n";
+                } else {
+                    print "Retrieved ".Dumper($query_params).Dumper($data)." from cache $f\n" if $ENV{DEBUG};
+                    $data->{cached} = $t;
+                    return $data;
+                }
+            }
+        } else {
+            # too old
+            # unlink($f);
+        }
+    }
+
     for my $try ( 1 .. $self->retries ) {
         $response =
-          eval { $self->ua->POST( $url, encode_json($data), $headers ); };
+          eval { 
+              print "Sent request to $url\n".
+                "Headers: ".
+                JSON::XS->new->pretty(1)->encode($headers)."\n".
+                    "Post data: ".
+                      JSON::XS->new->pretty(1)->encode($data) if $ENV{DEBUG};
+              $self->ua->POST( $url, encode_json($data), $headers );
+          };
         if ($@) {
             cluck($@);
             sleep( int( 1 + rand() * 3 ) * $try );
+        } else {
+            last;
         }
     }
-    return $self->_process_response($response);
+    
+    my $res = $self->_process_response($response);
+
+    # all is good, perhaps we should cache it?
+    if ($res && $self->cache_time) {
+        unless ( -d $self->cache_dir ) {
+            my $err;
+            unless (
+                make_path(
+                    $self->cache_dir,
+                    {
+                        mode  => 0700,
+                        error => \$err
+                    }
+                )
+              )
+              {
+                  warn(
+                      "Cannot create cache directory :".$self->cache_dir." ($err)".
+                        " caching turned off");
+                  $self->cache_time(0);
+                  return $res;
+              }
+            
+        }
+        unless ($res->{errros}) {
+            nstore($res, $f);
+            print "Stored result in cache file $f\n" if $ENV{DEBUG};
+        }
+    }
+
+    return $res;
 }
 
 =head1 SYNOPSIS
