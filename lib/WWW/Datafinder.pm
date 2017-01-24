@@ -162,7 +162,8 @@ sub _transaction {
             my $data = eval { retrieve($f); };
             if (!$@ && $data) {
                 if ($data->{errors} || $data->{datafinder}->{errors}) {
-                    print "Cached object contains error response - removing\n";
+                    print "Cached object $f contains error response - removing\n" if $ENV{DEBUG};
+                    unlink($f);
                 } else {
                     print "Retrieved ".Dumper($query_params).Dumper($data)." from cache $f\n" if $ENV{DEBUG};
                     $data->{cached} = $t;
@@ -171,7 +172,8 @@ sub _transaction {
             }
         } else {
             # too old
-            # unlink($f);
+            print "Cached object $f is too old - removing\n" if $ENV{DEBUG};
+            unlink($f);
         }
     }
 
