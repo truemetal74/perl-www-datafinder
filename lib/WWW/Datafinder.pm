@@ -25,7 +25,7 @@ use Scalar::Util qw(blessed reftype);
 use Readonly;
 use Exporter 'import';
 use File::Path qw(make_path);
-use File::Spec::Functions qw(catfile);
+use File::Spec::Functions qw(catfile catdir splitpath);
 use Digest::MD5 qw(md5 md5_hex);
 use Storable qw(nstore retrieve dclone);
 
@@ -137,9 +137,30 @@ sub _process_response {
 sub _cache_file_name {
     my ( $self, $query_params, $data ) = @_;
     
-    my $fname = catfile($self->cache_dir,,
-                        md5_hex(Dumper($query_params).Dumper($data)));
-    $fname .= '.stor';
+    my $md5 = md5_hex(Dumper($query_params).Dumper($data));
+    my $fname = catdir($self->cache_dir, 
+                       substr($md5, 0, 2),
+                       substr($md5, 2, 2));
+    unless ( -d $fname ) {
+        my $err;
+        unless (
+            make_path(
+                $fname,
+                {
+                    mode  => 0700,
+                    error => \$err
+                   }
+               )
+           )
+          {
+              warn(
+                  "Cannot create cache directory : $fname ($err),".
+                    " caching turned off");
+              $self->cache_time(0);
+          }
+    }
+    
+    $fname = catfile($fname, "$md5.stor");
     return $fname;
 }
 
@@ -199,26 +220,7 @@ sub _transaction {
 
     # all is good, perhaps we should cache it?
     if ($res && $self->cache_time) {
-        unless ( -d $self->cache_dir ) {
-            my $err;
-            unless (
-                make_path(
-                    $self->cache_dir,
-                    {
-                        mode  => 0700,
-                        error => \$err
-                    }
-                )
-              )
-              {
-                  warn(
-                      "Cannot create cache directory :".$self->cache_dir." ($err)".
-                        " caching turned off");
-                  $self->cache_time(0);
-                  return $res;
-              }
-            
-        }
+
         unless ($res->{errros}) {
             nstore($res, $f);
             print "Stored result in cache file $f\n" if $ENV{DEBUG};
@@ -322,6 +324,44 @@ C<error_message()> method to get the detailed info about the error.
 sub append_email {
     my ( $self, $data ) = @_;
     $data->{service} = 'email';
+
+    return $self->_transaction( $data, {} );
+}
+
+=head2 append_email( $data )
+
+Attempts to append customer's phone number based on his/her name and address
+Please see L<< https://datafinder.com/api/docs-demo >> for more
+info regarding the parameter names and format of their values in C<$data>.
+Returns a reference to a hash, which contains the response
+received from the server.
+Returns C<undef> on failure, application then may call
+C<error_message()> method to get the detailed info about the error.
+
+    my $res = $df->append_phone(
+        {
+            d_fulladdr => $cust->{Address},
+            d_city     => $cust->{City},
+            d_state    => $cust->{State},
+            d_zip      => $cust->{ZIP},
+            d_first    => $cust->{Name},
+            d_last     => $cust->{Surname}
+        }
+    );
+    if ( $res ) {
+        if ( $res->{'num-results'} ) {
+            # there is a match!
+            print "Got a match: " . Dumper( $res->{results} );
+        }
+    } else {
+        warn 'Something went wrong ' . $df->error_message();
+    }
+
+=cut
+
+sub append_phone {
+    my ( $self, $data ) = @_;
+    $data->{service} = 'phone';
 
     return $self->_transaction( $data, {} );
 }

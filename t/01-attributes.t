@@ -20,7 +20,7 @@ foreach my $attr (qw(api_key cache_time cache_dir retries)) {
 }
 
 # methods
-foreach my $method (qw(append_email error_message)) {
+foreach my $method (qw(append_email append_phone error_message)) {
     can_ok( $obj, $method );
 }
 
