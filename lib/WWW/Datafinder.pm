@@ -188,6 +188,7 @@ sub _transaction {
                 } else {
                     print "Retrieved ".Dumper($query_params).Dumper($data)." from cache $f\n" if $ENV{DEBUG};
                     $data->{cached} = $t;
+                    $data->{cache_object} = $f;
                     return $data;
                 }
             }
@@ -221,7 +222,7 @@ sub _transaction {
     # all is good, perhaps we should cache it?
     if ($res && $self->cache_time) {
 
-        unless ($res->{errros}) {
+        unless ($res->{erros}) {
             nstore($res, $f);
             print "Stored result in cache file $f\n" if $ENV{DEBUG};
         }
@@ -328,7 +329,7 @@ sub append_email {
     return $self->_transaction( $data, {} );
 }
 
-=head2 append_email( $data )
+=head2 append_phone( $data )
 
 Attempts to append customer's phone number based on his/her name and address
 Please see L<< https://datafinder.com/api/docs-demo >> for more
@@ -365,6 +366,45 @@ sub append_phone {
 
     return $self->_transaction( $data, {} );
 }
+
+=head2 append_demograph( $data )
+
+Attempts to append customer's demographic data on his/her name and address
+Please see L<< https://datafinder.com/api/docs-demo >> for more
+info regarding the parameter names and format of their values in C<$data>.
+Returns a reference to a hash, which contains the response
+received from the server.
+Returns C<undef> on failure, application then may call
+C<error_message()> method to get the detailed info about the error.
+
+    my $res = $df->append_demograph(
+        {
+            d_fulladdr => $cust->{Address},
+            d_city     => $cust->{City},
+            d_state    => $cust->{State},
+            d_zip      => $cust->{ZIP},
+            d_first    => $cust->{Name},
+            d_last     => $cust->{Surname}
+        }
+    );
+    if ( $res ) {
+        if ( $res->{'num-results'} ) {
+            # there is a match!
+            print "Got a match: " . Dumper( $res->{results} );
+        }
+    } else {
+        warn 'Something went wrong ' . $df->error_message();
+    }
+
+=cut
+
+sub append_demograph {
+    my ( $self, $data ) = @_;
+    $data->{service} = 'demograph';
+
+    return $self->_transaction( $data, {} );
+}
+
 
 =head2 error_message()
 
