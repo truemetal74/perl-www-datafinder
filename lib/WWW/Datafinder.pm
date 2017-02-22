@@ -10,11 +10,11 @@ WWW::Datafinder - Perl API for Datafinder L<< http://datafinder.com >> API for m
 
 =head1 VERSION
 
-Version 0.02
+Version 0.03
 
 =cut
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 use Carp qw(cluck);
 use Data::Dumper;
@@ -239,7 +239,7 @@ sub _transaction {
 
     my $csv = Text::CSV_XS->new;
     my $df  = WWW::Datafinder->new( {
-          api_key    => '456', # place real API key here
+          api_key    => '456', # place a real API key here
           cache_dir  => '/var/tmp/datafinder',
           cache_time => 3600 * 24 * 14
     }) or die 'Cannot create Datafinder object';
@@ -420,6 +420,23 @@ If you want to troubleshoot the data being sent between the client and the
 server - set environment variable DEBUG to a positive value.
 
 =cut
+
+=head1 CACHING
+
+The returned results can be cached in a local file, so the next time you
+want to retrieve the data for the same person, you get a faster response and
+do not have to spend money. Negative results (no match) are cached as well
+to speed things up.
+
+The hash key for a request is calculated as MD5 of all request parameters
+(including API key). The result is stored in a file (via Storable).
+Files are organized in the two-level directory structure (so
+fea5ffd3d65ee4d8bdf630677c0c5ff6.stor goes into /var/tmp/datafinder-cache/fe/a5/)
+to accommodate potentially large amount of files.
+
+When a result is returned from the cache instead of the real server, it has
+the C< cached > key set to the timestamp of the original data retrieval and
+C< cache_object > set to the filename of the cache file.
 
 =head1 AUTHOR
 
